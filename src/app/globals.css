@@ -1,0 +1,87 @@
+@import './brand-tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-midnight text-ice font-body;
+    background-image:
+      radial-gradient(ellipse 70% 50% at 50% -10%, rgba(224, 169, 58, 0.08), transparent 60%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* "File number" mono labels, per brand book */
+  .label-mono {
+    @apply font-mono uppercase tracking-widest text-[10px] text-gold/80;
+  }
+  .label-mono-dim {
+    @apply font-mono uppercase tracking-widest text-[10px] text-iceDim;
+  }
+
+  .display {
+    @apply font-display uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.95;
+  }
+
+  /* Brand book "hairline rule" */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border-hairline), transparent);
+  }
+
+  /* Faint field grid texture for atmosphere — decorative, never information */
+  .field-grid {
+    background-image:
+      linear-gradient(rgba(244, 242, 236, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(244, 242, 236, 0.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+}
+
+@layer components {
+  .container-pp {
+    @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-12;
+  }
+
+  /* Tag pill — status, conference, division markers */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-sharp border px-2 py-1
+           font-mono text-[10px] uppercase tracking-widest;
+  }
+  .pill-live {
+    background-color: var(--status-live-bg);
+    color: var(--status-live-fg);
+    border-color: var(--status-live-bd);
+  }
+  .pill-pending {
+    background-color: var(--status-pending-bg);
+    color: var(--status-pending-fg);
+    border-color: var(--status-pending-bd);
+  }
+  .pill-soon {
+    background-color: var(--status-soon-bg);
+    color: var(--status-soon-fg);
+    border-color: var(--status-soon-bd);
+  }
+}
+
+/* Focus rings — keyboard accessibility */
+*:focus-visible {
+  outline: 2px solid rgb(var(--color-gold));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Selection color */
+::selection {
+  background: rgb(var(--color-gold));
+  color: rgb(var(--color-midnight));
+}

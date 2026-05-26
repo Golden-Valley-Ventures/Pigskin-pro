@@ -1,0 +1,80 @@
+/* ============================================================================
+   PIGSKIN.PRO — BRAND TOKENS (PROVISIONAL · v1.1)
+   ============================================================================
+
+   This file is the ONLY place to change brand palette values.
+   Every other file (tailwind.config.js, components, globals.css) reads from
+   these CSS variables.
+
+   STATUS: PROVISIONAL.
+   The hex values below are interpreted from the V1.1 logo evolution PDF
+   visuals. They are not the official brand-kit values. Once the official
+   brand book hex codes are received, REPLACE the values in this file only —
+   no other refactor required.
+
+   Named color slots mirror the brand-book contrast study:
+     - Midnight Turf   : primary dark canvas
+     - Slate-2         : UI surface (cards, dividers)
+     - Slate-3         : borders
+     - Ice White       : primary text on dark
+     - Ice Dim         : secondary text on dark
+     - Signal Gold     : primary accent
+     - Gold Soft       : headlines on green only
+     - Turf Green      : never carries body text
+     - Leather         : print accent (Direction A laces, Direction C crest)
+     - Chalk           : off-white accent
+
+   THE NEW CONTRAST RULE (locked):
+     - Minimum WCAG AA. Default AAA.
+     - No body text below 4.5:1. No headlines below 3:1.
+     - Brand gold is locked to Midnight Turf or Ice White backgrounds only.
+   ============================================================================ */
+
+:root {
+  /* -- core palette (PROVISIONAL) ----------------------------------------- */
+  --color-midnight: 14 19 32;       /* #0E1320 */
+  --color-slate-2:  26 31 46;       /* #1A1F2E */
+  --color-slate-3:  38 43 58;       /* #262B3A */
+  --color-ice:      244 242 236;    /* #F4F2EC */
+  --color-ice-dim:  168 173 184;    /* #A8ADB8 */
+  --color-gold:     224 169 58;     /* #E0A93A */
+  --color-gold-soft: 196 146 48;    /* #C49230 */
+  --color-turf:     31 58 46;       /* #1F3A2E */
+  --color-leather:  139 90 43;      /* #8B5A2B */
+  --color-chalk:    232 228 217;    /* #E8E4D9 */
+
+  /* -- semantic mapping --------------------------------------------------- */
+  --bg-page:    rgb(var(--color-midnight));
+  --bg-surface: rgb(var(--color-slate-2));
+  --bg-elev:    rgb(var(--color-slate-3));
+
+  --text-primary:   rgb(var(--color-ice));
+  --text-secondary: rgb(var(--color-ice-dim));
+  --text-accent:    rgb(var(--color-gold));
+
+  --border-default: rgba(var(--color-ice) / 0.06);
+  --border-strong:  rgba(var(--color-gold) / 0.35);
+  --border-hairline: rgba(var(--color-ice) / 0.18);
+
+  /* -- status hue assignments (semantic, brand-consistent) ---------------- */
+  --status-live-fg:    rgb(var(--color-gold));
+  --status-live-bg:    rgba(var(--color-gold) / 0.10);
+  --status-live-bd:    rgba(var(--color-gold) / 0.40);
+
+  --status-pending-fg: rgb(var(--color-chalk));
+  --status-pending-bg: rgba(var(--color-leather) / 0.18);
+  --status-pending-bd: rgba(var(--color-leather) / 0.60);
+
+  --status-soon-fg:    rgb(var(--color-ice-dim));
+  --status-soon-bg:    rgba(var(--color-slate-2) / 0.6);
+  --status-soon-bd:    rgb(var(--color-slate-3));
+
+  /* -- typography --------------------------------------------------------- */
+  --font-display: var(--font-bebas), Impact, 'Arial Narrow Bold', sans-serif;
+  --font-body:    var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* -- spacing / radii ---------------------------------------------------- */
+  --radius-sharp: 2px;
+  --radius-card:  4px;
+}

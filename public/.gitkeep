@@ -1,0 +1,3 @@
+# This file exists so the public/ directory is preserved
+# by git and by zip tools that skip empty folders.
+# It can be deleted once real public assets (favicon.ico, og-image.png, etc.) are added.
