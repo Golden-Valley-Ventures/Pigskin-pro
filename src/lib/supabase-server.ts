@@ -1,17 +1,16 @@
-import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import type { Database } from '@/types/database';
 
-/**
- * Server Supabase client. Reads/writes the user's session via Next.js cookies.
- *
- * Use in:
- *   - Server Components (read-only)
- *   - Route Handlers
- *   - Server Actions
- */
+type CookieToSet = {
+  name: string;
+  value: string;
+  options: CookieOptions;
+};
+
 export async function createClient() {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,14 +20,13 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
           } catch {
-            // setAll called from a Server Component — safe to ignore when
-            // a middleware refresh path is in place (we have one).
+            // Server Components cannot set cookies.
           }
         },
       },
@@ -36,23 +34,38 @@ export async function createClient() {
   );
 }
 
-/**
- * Returns the current session user iff they are in the admin_users allowlist.
- * Returns null otherwise. Use this for auth checks in admin pages and actions.
- */
-export async function requireAdmin() {
+export async function getUser() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  return user;
+}
 
-  const { data: admin } = await supabase
+export async function requireUser() {
+  const user = await getUser();
+
+  if (!user) {
+    redirect('/admin/login');
+  }
+
+  return user;
+}
+
+export async function requireAdmin() {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data } = await supabase
     .from('admin_users')
-    .select('user_id')
-    .eq('user_id', user.id)
+    .select('id')
+    .eq('id', user.id)
     .maybeSingle();
 
-  return admin ? user : null;
+  if (!data) {
+    redirect('/admin/login');
+  }
+
+  return user;
 }
