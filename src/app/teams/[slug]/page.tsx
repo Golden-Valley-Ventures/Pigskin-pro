@@ -1,114 +1,133 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase-server';
 
-// Public pages — published rows only (enforced by RLS).
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
-export default async function PublicTeamPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
+type PageProps = {
+  params: {
+    slug: string;
+  };
+};
+
+export default async function TeamPage({ params }: PageProps) {
   const supabase = await createClient();
 
-  const { data: team } = await supabase
+  const { data: teamData, error: teamError } = await supabase
     .from('teams')
-    .select(
-      `*, division:divisions ( name, slug, conference, region )`,
-    )
-    .eq('slug', slug)
+    .select('*')
+    .eq('slug', params.slug)
     .eq('status', 'published')
     .maybeSingle();
 
-  if (!team) notFound();
+  if (teamError || !teamData) {
+    notFound();
+  }
 
-  const [{ data: snap }, { data: proj }] = await Promise.all([
-    supabase
-      .from('team_latest_snapshot')
-      .select('*')
-      .eq('team_id', team.id)
-      .maybeSingle(),
-    supabase
-      .from('team_latest_projection')
-      .select('*')
-      .eq('team_id', team.id)
-      .maybeSingle(),
-  ]);
+  const team: any = teamData;
+  const teamId = team.id as string;
 
-  const division = Array.isArray(team.division)
-    ? team.division[0]
-    : team.division;
+  const [{ data: snapshot }, { data: projection }, { data: sources }] =
+    await Promise.all([
+      supabase
+        .from('team_latest_snapshot')
+        .select('*')
+        .eq('team_id', teamId)
+        .maybeSingle(),
+
+      supabase
+        .from('team_latest_projection')
+        .select('*')
+        .eq('team_id', teamId)
+        .maybeSingle(),
+
+      supabase
+        .from('source_notes')
+        .select('*')
+        .eq('team_id', teamId)
+        .eq('status', 'published')
+        .order('source_date', { ascending: false })
+        .limit(8),
+    ]);
 
   return (
-    <main className="public-team">
-      <p className="crumbs">
-        {division && (
-          <Link href={`/divisions/${division.slug}`}>{division.name}</Link>
+    <main className="site-page">
+      <section className="hero">
+        <p className="eyebrow">{team.city}</p>
+        <h1>{team.name}</h1>
+        <p className="lede">
+          {(snapshot as any)?.team_thesis ?? 'Team research snapshot coming soon.'}
+        </p>
+      </section>
+
+      <section className="metric-grid">
+        <div className="metric-card">
+          <span className="metric-label">Projected Wins</span>
+          <strong>{(projection as any)?.projected_wins ?? '—'}</strong>
+        </div>
+        <div className="metric-card">
+          <span className="metric-label">Floor</span>
+          <strong>{(projection as any)?.floor_wins ?? '—'}</strong>
+        </div>
+        <div className="metric-card">
+          <span className="metric-label">Ceiling</span>
+          <strong>{(projection as any)?.ceiling_wins ?? '—'}</strong>
+        </div>
+        <div className="metric-card">
+          <span className="metric-label">Confidence</span>
+          <strong>{(projection as any)?.confidence ?? '—'}</strong>
+        </div>
+      </section>
+
+      <section className="content-grid">
+        <article className="card">
+          <h2>Quarterback</h2>
+          <p>{(snapshot as any)?.qb_summary ?? 'No quarterback summary published yet.'}</p>
+        </article>
+
+        <article className="card">
+          <h2>Offensive Line</h2>
+          <p>{(snapshot as any)?.ol_summary ?? 'No offensive line summary published yet.'}</p>
+        </article>
+
+        <article className="card">
+          <h2>Coaching</h2>
+          <p>{(snapshot as any)?.coaching_summary ?? 'No coaching summary published yet.'}</p>
+        </article>
+
+        <article className="card">
+          <h2>Defense</h2>
+          <p>{(snapshot as any)?.defensive_summary ?? 'No defensive summary published yet.'}</p>
+        </article>
+
+        <article className="card">
+          <h2>Fantasy Notes</h2>
+          <p>{(snapshot as any)?.fantasy_notes ?? 'No fantasy notes published yet.'}</p>
+        </article>
+
+        <article className="card">
+          <h2>Betting Notes</h2>
+          <p>{(snapshot as any)?.betting_notes ?? 'No betting notes published yet.'}</p>
+        </article>
+      </section>
+
+      <section className="card">
+        <h2>Sources</h2>
+        {Array.isArray(sources) && sources.length > 0 ? (
+          <ul className="source-list">
+            {(sources as any[]).map((source) => (
+              <li key={source.id}>
+                <strong>{source.title ?? source.source_name ?? 'Source'}</strong>
+                {source.source_date ? (
+                  <span> — {new Date(source.source_date).toLocaleDateString()}</span>
+                ) : null}
+                {source.excerpt ? <p>{source.excerpt}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">No source notes published yet.</p>
         )}
-      </p>
-      <h1>{team.name}</h1>
-      {snap?.archetype && <p className="archetype">{snap.archetype}</p>}
-
-      {proj && (
-        <section className="proj">
-          {proj.projected_wins != null && (
-            <Stat label="Projected wins" value={proj.projected_wins} />
-          )}
-          {proj.floor_wins != null && (
-            <Stat label="Floor" value={proj.floor_wins} />
-          )}
-          {proj.ceiling_wins != null && (
-            <Stat label="Ceiling" value={proj.ceiling_wins} />
-          )}
-          {proj.confidence != null && (
-            <Stat label="Confidence" value={`${proj.confidence}/10`} />
-          )}
-        </section>
-      )}
-
-      {snap?.team_thesis && <Section title="Thesis" body={snap.team_thesis} />}
-      {snap?.qb_summary && <Section title="QB" body={snap.qb_summary} />}
-      {snap?.ol_summary && (
-        <Section
-          title={`Offensive line${snap.ol_grade ? ` · ${snap.ol_grade}` : ''}`}
-          body={snap.ol_summary}
-        />
-      )}
-      {snap?.defensive_summary && (
-        <Section title="Defense" body={snap.defensive_summary} />
-      )}
-      {snap?.coaching_summary && (
-        <Section title="Coaching" body={snap.coaching_summary} />
-      )}
-      {snap?.injury_status && (
-        <Section title="Injuries" body={snap.injury_status} />
-      )}
-      {snap?.key_additions && (
-        <Section title="Key additions" body={snap.key_additions} />
-      )}
-      {snap?.key_losses && (
-        <Section title="Key losses" body={snap.key_losses} />
-      )}
+      </section>
     </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className="stat-value">{value}</span>
-    </div>
-  );
-}
-
-function Section({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="block">
-      <h2>{title}</h2>
-      <p>{body}</p>
-    </section>
   );
 }
