@@ -1,230 +1,161 @@
-# Pigskin.pro — Foundation Build (v1.1)
+# Pigskin.pro CMS
 
-The first production-quality foundation site for **Pigskin Professionals**, using the public brand identity **Pigskin.pro**.
+Supabase-backed CMS for `pigskin.pro`. Editors sign in with a magic link at
+`/admin`, edit team narrative and projections through a form, and the public
+pages (`/teams/[slug]`, `/divisions/[slug]`) read straight from Postgres.
 
-> Pigskin Professionals provides football research and fantasy analysis for informational and entertainment purposes only.
+## What's in here
 
----
+```
+supabase/
+  config.toml
+  migrations/
+    20260526000000_initial_schema.sql   # all tables, enums, RLS, triggers
+  seed/
+    seed.sql                            # AFC East + AFC West placeholders
+src/
+  middleware.ts                         # auth gate for /admin
+  types/database.ts                     # generated-style Supabase types
+  lib/
+    supabase-server.ts                  # server client + requireAdmin()
+    supabase-browser.ts                 # browser client
+  app/
+    layout.tsx
+    admin/
+      admin.css
+      layout.tsx                        # nav + sign-out
+      page.tsx                          # dashboard
+      login/page.tsx                    # magic-link form
+      teams/
+        page.tsx                        # team list
+        [slug]/
+          edit/
+            page.tsx                    # server: loads team + draft rows
+            EditForm.tsx                # client: optimistic save, debounced
+            actions.ts                  # server actions
+          history/page.tsx              # audit_log view per team
+      _components/SignOutButton.tsx
+    auth/callback/route.ts              # magic-link callback
+    teams/[slug]/page.tsx               # PUBLIC team page
+    divisions/[slug]/page.tsx           # PUBLIC division page
+```
 
-## Current State
+## Local setup
 
-| Surface                                     | Status                  |
-|---------------------------------------------|-------------------------|
-| Pigskin Professionals / Pigskin.pro brand   | **Live**                |
-| Core site architecture                      | **Live**                |
-| AFC West division & team page structure     | **Pending Verification**|
-| All other divisions and team pages          | **Coming Soon**         |
-| Fantasy / DFS / Dynasty / Waiver Watch / Draft War Room / Market Lab | **Coming Soon** |
-| Premium tier (paywall, auth, Stripe)        | **Future Phase**        |
-| Live API ingestion / agent automation       | **Future Phase**        |
-
-AFC West is **not** marked Live. The page structure is published; section content is intentionally withheld until verified research files are received and approved.
-
----
-
-## Stack
-
-- **Next.js 14** (App Router) · TypeScript · Tailwind CSS
-- Static local data files (no DB, no API calls, no auth)
-- Google Fonts: Bebas Neue (display) · Inter (body) · JetBrains Mono (data labels)
-- Deploys clean to Vercel
-
----
-
-## Run Locally
+Prereqs: Node 20+, Docker (for Supabase local), [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started).
 
 ```bash
+# 1. Install deps
 npm install
+
+# 2. Start local Supabase (Postgres + Auth + Studio on port 54323)
+supabase start
+
+# 3. Apply the migration + seed
+supabase db reset           # runs migrations/, then seed/seed.sql
+
+# 4. Copy local URL + anon key from `supabase status` into .env.local
+cp .env.example .env.local
+# edit with values from `supabase status`
+
+# 5. Run the app
 npm run dev
 ```
 
-Open <http://localhost:3000>.
+### Add yourself as an admin
 
-Type-check and lint:
+The first time, the `admin_users` table is empty so nobody can write. Two
+options:
+
+**A. From Supabase Studio (`http://localhost:54323`):**
+
+1. Go to Authentication → Users → "Add user" → invite by email. Use your real
+   email; you'll get a confirmation link in the local mail catcher
+   (`http://localhost:54324`).
+2. After confirming, copy the user's UUID.
+3. SQL editor: `insert into admin_users (user_id, email) values ('<uuid>', '<email>');`
+
+**B. Via psql:**
 
 ```bash
-npm run typecheck
-npm run lint
+supabase db connect
+# inside psql:
+insert into auth.users (id, email, email_confirmed_at, ...)
+  -- easier: use the dashboard. Inserting raw auth.users requires a few
+  -- additional fields and is fragile across Supabase versions.
 ```
 
-Production build:
+Then visit `http://localhost:3000/admin/login`, request a magic link, and
+you're in.
+
+### Regenerating types after schema changes
 
 ```bash
-npm run build
-npm run start
+npm run db:types        # writes src/types/database.ts
 ```
 
----
+(The committed `database.ts` is a hand-written equivalent so the project type-
+checks before you've run the CLI; overwrite it once you generate.)
 
-## Deploy to Vercel
+## Deploy
 
-1. Push the repo to GitHub.
-2. In Vercel, **Add New Project** → select the repo.
-3. Framework preset: **Next.js**. No env vars needed for this build.
-4. Deploy. The app is statically rendered for all current routes (`generateStaticParams` is used for `/teams/[slug]` and `/divisions/[slug]`).
+### Supabase (cloud)
 
----
+1. Create a new project at https://supabase.com.
+2. From the project root: `supabase link --project-ref <ref>`.
+3. Push the migration: `supabase db push`.
+4. Apply the seed manually from the SQL editor (it's idempotent), or run
+   `psql "$(supabase db remote get-uri)" -f supabase/seed/seed.sql`.
+5. **Authentication → URL Configuration:**
+   - Site URL: `https://pigskin.pro`
+   - Redirect URLs: add `https://pigskin.pro/auth/callback`
+6. **Authentication → Email templates → Magic Link:** customize as you like.
+7. **Authentication → Providers → Email:** disable "Enable email signup"
+   (we only want allowlisted admins).
+8. Add your admin row in the SQL editor:
+   ```sql
+   insert into admin_users (user_id, email)
+   values ('<your-auth-uid>', 'you@pigskin.pro');
+   ```
 
-## Project Structure
+### Vercel
 
-```
-src/
-  app/
-    layout.tsx                    # Root layout — fonts, header, footer
-    page.tsx                      # Homepage
-    globals.css                   # Tailwind base + utility classes
-    brand-tokens.css              # ← SINGLE SOURCE OF TRUTH for brand colors
-    not-found.tsx                 # 404
-    icon.svg                      # Favicon (The Hash)
-    teams/page.tsx                # Teams index (all 32)
-    teams/[slug]/page.tsx         # Team detail (dynamic)
-    divisions/page.tsx            # Divisions index
-    divisions/[slug]/page.tsx     # Division detail (dynamic)
-    nfl-intel/page.tsx
-    fantasy/page.tsx
-    dfs/page.tsx
-    dynasty/page.tsx
-    waiver-watch/page.tsx
-    draft-war-room/page.tsx
-    market-lab/page.tsx
-    premium/page.tsx              # UI-only email capture, no real wiring
-    about/page.tsx
+1. Push this repo to GitHub.
+2. Import in Vercel.
+3. Set environment variables (Project Settings → Environment Variables):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Deploy.
+5. In Supabase dashboard, add the Vercel preview URLs as additional redirect
+   URLs if you want magic links to work in previews.
 
-  components/
-    Header.tsx                    # Sticky nav with mobile drawer
-    Footer.tsx                    # Manifesto + nav + disclaimer
-    Logo.tsx                      # The Hash mark + wordmark
-    CTAButton.tsx
-    StatusBadge.tsx               # live / pending-verification / coming-soon
-    TeamCard.tsx
-    DivisionCard.tsx
-    IntelSection.tsx              # Renders a research block with governance UI
-    ComingSoonPanel.tsx
-    PageHero.tsx
-    PremiumTeaser.tsx
-    MetricCard.tsx
-    SourceNote.tsx                # Page-level source attribution
-    ResearchStatus.tsx            # Header strip on team/division pages
-    ResearchIntegrityNote.tsx     # Visible governance note
+## How the edit flow works
 
-  lib/
-    types.ts                      # All TypeScript types
-    nav.ts                        # Navigation config
+1. Editor visits `/admin/teams` → clicks Edit on a team.
+2. Server loads the team + the latest snapshot/projection for the current
+   season.
+3. Client form binds to local state. Every field change marks the form dirty
+   and schedules an autosave (1.2s debounce).
+4. Save calls a Server Action that updates (or inserts) the snapshot and
+   projection rows.
+5. The DB trigger writes a row into `audit_log` with the field-level diff.
+6. The form's "last saved" timestamp re-renders every 30 seconds.
+7. Hitting **Publish** flips `status` to `published`. Public pages
+   immediately see the new content (Next.js `revalidatePath` is called on
+   the public route from the server action).
 
-  data/
-    nfl/
-      teams.ts                    # All 32 teams (status flags)
-      divisions.ts                # 8 divisions (status flags)
-    research/
-      afc-west.ts                 # ← UPDATE THIS WHEN RESEARCH ARRIVES
-    site/
-      roadmap.ts                  # Future platform roadmap items
-```
+## Why this shape
 
----
-
-## Updating Team / Division Research
-
-All research content lives in `src/data/research/afc-west.ts`.
-
-### To publish a verified block:
-1. Receive an approved research file from the research team.
-2. In `afc-west.ts`, change the block's `status` from `'pending-verification'` to `'verified'`.
-3. Fill `body` and/or `bullets`.
-4. Set `sourceNote` (which file / who approved).
-5. Set `lastVerified` (ISO date like `'2026-09-15'`).
-
-### To promote the **AFC West division** to Live:
-- All eight division-level blocks in `afc-west.ts` must be `'verified'`.
-- Edit `src/data/nfl/divisions.ts` and change the `afc-west` entry's `status` from `'pending-verification'` to `'live'`.
-
-### To promote an **AFC West team** to Live:
-- All eight team page sections in `afcWestTeamResearch[<id>]` must be `'verified'`.
-- Edit `src/data/nfl/teams.ts` and change that team's `status` from `'pending-verification'` to `'live'`. Set `lastVerified` and `shortSummary`.
-
-The UI updates automatically — no component changes required.
-
----
-
-## Brand Color Palette
-
-Provisional palette is defined in **one file**: `src/app/brand-tokens.css`. When the official brand kit hex codes are received, edit only that file. Nothing else needs to change.
-
-Provisional values (derived from the V1.1 logo evolution PDF visuals):
-
-| Token         | Hex       | Use                                    |
-|---------------|-----------|----------------------------------------|
-| Midnight Turf | `#0E1320` | Primary dark canvas                    |
-| Slate-2       | `#1A1F2E` | UI surface                             |
-| Slate-3       | `#262B3A` | Borders / dividers                     |
-| Ice White     | `#F4F2EC` | Primary text on dark                   |
-| Ice Dim       | `#A8ADB8` | Secondary text on dark                 |
-| Signal Gold   | `#E0A93A` | Primary accent                         |
-| Gold Soft     | `#C49230` | Headlines on green only                |
-| Turf Green    | `#1F3A2E` | Never carries body text                |
-| Leather       | `#8B5A2B` | Print accent / pending-verification    |
-| Chalk         | `#E8E4D9` | Off-white accent                       |
-
-**Contrast rule** (from the brand book, locked): minimum WCAG AA, default AAA. No body text below 4.5:1. No headlines below 3:1. Gold is locked to Midnight Turf or Ice White backgrounds only — never on low-contrast slate.
-
----
-
-## Files Needed Before AFC West Can Go Live
-
-The foundation build is complete. To promote AFC West from **Pending Verification** to **Live**, the following must be attached:
-
-1. **Official brand kit hex values** — to replace the provisional palette in `src/app/brand-tokens.css`. Specifically the canonical hex for: Midnight Turf, Slate-2, Slate-3, Ice White, Ice Dim, Signal Gold, Gold Soft, Turf Green, Leather, Chalk.
-2. **Official typography specification** — confirm Bebas Neue / Inter / JetBrains Mono are the approved fonts, or substitute the official brand fonts.
-3. **AFC West division research file** with verified content for the eight division-level blocks:
-   - Division Overview
-   - Key Fantasy Themes
-   - Offensive Environments
-   - Coaching / Scheme Notes
-   - Quarterback Stability
-   - Backfield Clarity
-   - Pass Catcher Hierarchy
-   - Scoring Environment Signals
-4. **Per-team research files** for each AFC West team (Kansas City Chiefs, Denver Broncos, Los Angeles Chargers, Las Vegas Raiders), each covering:
-   - Team Snapshot
-   - Quarterback Room
-   - Running Back Room
-   - Pass Catchers
-   - Offensive Line / Environment
-   - Coaching / Play Calling
-   - Key Fantasy Takeaways (3–7 concise bullets)
-   - Watch List
-5. **Source attribution per file** — who approved it, when, and what underlying material it was built from. This populates the `sourceNote` and `lastVerified` fields.
-6. **Logo file confirmation** — confirm that the in-code SVG implementation of "The Hash" mark in `src/components/Logo.tsx` and `src/app/icon.svg` matches the official vector files, or replace with the official SVG.
-
-Until these arrive, every AFC West surface stays in **Pending Verification** state and displays the governance placeholder. No analysis is invented.
-
----
-
-## Next Build Phase
-
-After AFC West goes live, the planned progression is:
-
-1. **Conference research expansion** — AFC East, AFC North, AFC South, then NFC.
-2. **Authentication** — likely NextAuth or Clerk. Add `(auth)` route group.
-3. **Stripe subscriptions** — wire `Premium` page email capture to a real list; add `/premium/upgrade` and webhook handlers.
-4. **Database** — Postgres (Neon/Supabase) for users, subscriptions, saved teams, draft sessions.
-5. **API ingestion layer** — depth charts, rosters, schedules, injury feeds. Use `futureApiFields` on each team object as the wiring point.
-6. **Agent workflows** — per-player news / injury / usage agents that produce verified summary cards. Output reviewed via admin dashboard before publication.
-7. **Admin / Research Approval Dashboard** — internal-only route. Analysts draft research, editor approves, status flips from `pending-verification` → `verified` automatically.
-8. **DFS / Waiver / Dynasty / Draft / Market** — built in that order, each gated by the same governance: nothing ships until research backs it.
-
----
-
-## Voice & Content Discipline
-
-Per the V1.1 brand book:
-
-- **75% institutional, 25% gridiron edge.** Visuals stay measured. Words pick a fight.
-- **Manifesto line:** *"We don't have takes. We have reads."*
-- **Institutional lock-up:** *"Fantasy Football. Professionally."*
-- Avoid: "Crush your league," "guaranteed edge," "lock of the week," generic hype, "AI magic" language.
-- Prefer: "Verified signals," "decision-grade football intelligence," "research-backed fantasy context."
-
----
-
-© 2026 Pigskin Professionals, Inc. — All rights reserved. — pigskin.pro
+- **Snapshots and projections are separate from teams.** Team identity (name,
+  slug, division) rarely changes. Narrative and numbers change weekly.
+  Keeping them in their own tables means you don't lose history when you
+  re-grade a QB.
+- **Audit log via trigger, not application code.** The trigger captures
+  every UPDATE no matter where it came from — admin form, psql, Studio.
+  Application-level audit logging silently drops anything that bypasses the
+  app.
+- **RLS is the real authorization boundary.** Middleware redirects are nice
+  UX. The actual guarantee is the `is_admin()` policy on every table.
+- **`status` enum, not a `published` boolean.** Adding `archived` later for
+  "team relocated" or "season ended" is one new enum value; adding a third
+  state to a boolean is a migration.
