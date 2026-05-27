@@ -1,56 +1,85 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase-server';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
-export default async function PublicDivisionPage({
+type DivisionRow = {
+  id: string;
+  slug: string;
+  name: string;
+  conference: string;
+};
+
+type TeamRow = {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  abbreviation: string;
+  status: string;
+  projected_wins?: number | null;
+  confidence?: number | null;
+};
+
+export default async function DivisionPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: { slug: string };
 }) {
-  const { slug } = await params;
   const supabase = await createClient();
 
-  const { data: division } = await supabase
+  const { data: divisionData } = await supabase
     .from('divisions')
-    .select('*')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .maybeSingle();
+    .select('id, slug, name, conference')
+    .eq('slug', params.slug)
+    .single();
 
-  if (!division) notFound();
+  const division = divisionData as DivisionRow | null;
 
-  const { data: teams } = await supabase
+  if (!division) {
+    notFound();
+  }
+
+  const { data: teamData } = await supabase
     .from('teams')
-    .select(
-      `id, slug, name, abbreviation,
-       proj:team_latest_projection ( projected_wins, confidence )`,
-    )
+    .select('id, slug, name, city, abbreviation, status')
     .eq('division_id', division.id)
     .eq('status', 'published')
-    .order('name');
+    .order('city', { ascending: true });
+
+  const teams = (teamData ?? []) as TeamRow[];
 
   return (
-    <main className="public-division">
-      <h1>{division.name}</h1>
-      {division.summary && <p className="lede">{division.summary}</p>}
+    <main className="site-page">
+      <section className="hero">
+        <p className="eyebrow">{division.conference}</p>
+        <h1>{division.name}</h1>
+        <p className="lede">
+          Division research hub for team dossiers, projections, and structural notes.
+        </p>
+      </section>
 
-      <ul className="div-teams">
-        {teams?.map((t) => {
-          const p = Array.isArray(t.proj) ? t.proj[0] : t.proj;
-          return (
-            <li key={t.id}>
-              <Link href={`/teams/${t.slug}`}>
-                <span className="t-name">{t.name}</span>
-                {p?.projected_wins != null && (
-                  <span className="t-wins">{p.projected_wins} wins</span>
-                )}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <section className="grid">
+        {teams.length > 0 ? (
+          teams.map((team) => (
+            <Link className="card" href={`/teams/${team.slug}`} key={team.id}>
+              <p className="eyebrow">{team.abbreviation}</p>
+              <h2>
+                {team.city} {team.name}
+              </h2>
+              <p className="muted">View team dossier →</p>
+            </Link>
+          ))
+        ) : (
+          <div className="card">
+            <h2>No published teams yet</h2>
+            <p className="muted">
+              Publish teams from the admin panel and they’ll appear here.
+            </p>
+          </div>
+        )}
+      </section>
     </main>
   );
 }
